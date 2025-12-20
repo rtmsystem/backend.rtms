@@ -1,0 +1,4 @@
+"""
+Migrations for geographical app.
+"""
+

@@ -1,0 +1,44 @@
+# Django Core (Compatible with Python 3.9)
+Django==4.2.16
+djangorestframework==3.14.0
+django-cors-headers==4.3.1
+django-environ==0.11.2
+
+# Database
+psycopg2-binary==2.9.9
+
+# JWT Authentication
+djangorestframework-simplejwt==5.3.0
+
+# API Documentation
+drf-yasg==1.21.7
+
+# Async support
+asgiref==3.7.2
+channels==4.0.0
+
+# Code Quality
+black==24.1.1
+flake8==7.0.0
+isort==5.13.2
+mypy==1.8.0
+
+# Pre-commit
+pre-commit==3.6.0
+
+# Testing
+pytest==7.4.4
+pytest-django==4.7.0
+pytest-asyncio==0.23.3
+faker==22.2.0
+
+# Environment
+python-dotenv==1.0.0
+
+# Cloudinary for image storage
+cloudinary==1.40.0
+django-cloudinary-storage==0.3.0
+Pillow==10.4.0
+
+# Gunicorn for production
+gunicorn==21.2.0
