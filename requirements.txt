@@ -1,52 +1,61 @@
-# Django Core
+asgiref==3.7.2
+black==24.1.1
+certifi==2025.11.12
+cfgv==3.5.0
+channels==4.0.0
+charset-normalizer==3.4.4
+click==8.3.1
+cloudinary==1.40.0
+distlib==0.4.0
 Django==5.0.1
-djangorestframework==3.14.0
+django-cloudinary-storage==0.3.0
 django-cors-headers==4.3.1
 django-environ==0.11.2
 django-filter==23.5
-
-# Database
-psycopg-binary>=3.0.0 --only-binary=psycopg-binary
-
-# JWT Authentication
-djangorestframework-simplejwt==5.5.1
-
-# API Documentation
-drf-yasg==1.21.7
-
-# Async support
-asgiref==3.7.2
-channels==4.0.0
-
-# Code Quality
-black==24.1.1
-flake8==7.0.0
-isort==5.13.2
-mypy==1.8.0
 django-stubs==4.2.7
+django-stubs-ext==5.2.8
+djangorestframework==3.14.0
 djangorestframework-stubs==3.14.5
-
-# Pre-commit
-pre-commit==3.6.0
-
-# Testing
-pytest==7.4.4
-pytest-django==4.7.0
-pytest-asyncio==0.23.3
-faker==22.2.0
-
-# Environment
-python-dotenv==1.0.0
-
-# Cloudinary for image storage
-cloudinary==1.40.0
-django-cloudinary-storage==0.3.0
-Pillow==10.4.0
-
-# Gunicorn for production
+djangorestframework_simplejwt==5.5.1
+drf-yasg==1.21.7
+Faker==22.2.0
+filelock==3.20.1
+flake8==7.0.0
 gunicorn==21.2.0
+identify==2.6.15
+idna==3.11
+inflection==0.5.1
+iniconfig==2.3.0
+isort==5.13.2
+mccabe==0.7.0
+mypy==1.8.0
+mypy_extensions==1.1.0
+nodeenv==1.9.1
+packaging==25.0
+pathspec==0.12.1
+pillow==10.4.0
+platformdirs==4.5.1
+pluggy==1.6.0
+pre-commit==3.6.0
+psycopg2-binary==2.9.9
+pycodestyle==2.11.1
+pyflakes==3.2.0
+PyJWT==2.10.1
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-django==4.7.0
+python-dateutil==2.9.0.post0
+python-dotenv==1.0.0
+pytz==2025.2
+PyYAML==6.0.3
+requests==2.32.5
+six==1.17.0
+sqlparse==0.5.5
+types-pytz==2025.2.0.20251108
+types-PyYAML==6.0.12.20250915
+types-requests==2.32.4.20250913
+typing_extensions==4.15.0
+uritemplate==4.2.0
+urllib3==2.6.2
+virtualenv==20.35.4
 whitenoise==6.6.0
-
-# Fijar setuptools para evitar warning de pkg_resources deprecado
-setuptools<81
-
