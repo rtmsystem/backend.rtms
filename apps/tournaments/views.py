@@ -951,7 +951,7 @@ class InvolvementListCreateView(StandardResponseMixin, generics.ListCreateAPIVie
         except Exception as e:
             from django.db import IntegrityError
             if isinstance(e, IntegrityError):
-                 raise ValidationError("An involvement for this player in this division already exists.")
+                raise ValidationError("An involvement for this player in this division already exists.")
             raise
 
 

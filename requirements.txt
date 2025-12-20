@@ -9,7 +9,7 @@ django-filter==23.5
 psycopg2-binary==2.9.9
 
 # JWT Authentication
-djangorestframework-simplejwt==5.3.0
+djangorestframework-simplejwt==5.5.1
 
 # API Documentation
 drf-yasg==1.21.7
@@ -45,4 +45,8 @@ Pillow==10.4.0
 
 # Gunicorn for production
 gunicorn==21.2.0
+whitenoise==6.6.0
+
+# Fijar setuptools para evitar warning de pkg_resources deprecado
+setuptools<81
 

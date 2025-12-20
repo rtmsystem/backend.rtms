@@ -16,8 +16,8 @@ SECURE_HSTS_PRELOAD = True
 # Database optimization for production
 DATABASES['default']['CONN_MAX_AGE'] = 600
 
-# Static files
-STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'
+# Static files - WhiteNoise with compression for production
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Logging - More restrictive in production
 LOGGING['root']['level'] = 'WARNING'
