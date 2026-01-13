@@ -75,6 +75,7 @@ class PlayerProfileAdmin(admin.ModelAdmin):
             'fields': (
                 'height_cm',
                 'weight_kg',
+                'shirt_size',
                 'handedness'
             )
         }),
@@ -84,6 +85,13 @@ class PlayerProfileAdmin(admin.ModelAdmin):
                 'emergency_contact_last_name',
                 'emergency_contact_phone',
                 'emergency_contact_relationship'
+            )
+        }),
+        ('Medical Information', {
+            'fields': (
+                'health_insurance',
+                'blood_type',
+                'medical_conditions'
             )
         }),
         ('Timestamps', {

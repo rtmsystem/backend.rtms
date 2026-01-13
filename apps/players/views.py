@@ -270,17 +270,23 @@ class PlayerProfileViewSet(StandardModelViewSet):
                     'date_of_birth': validated_data.get('date_of_birth'),
                     'phone': validated_data.get('phone', ''),
                     'height_cm': validated_data.get('height_cm'),
+                    'shirt_size': validated_data.get('shirt_size', ''),
                     'weight_kg': validated_data.get('weight_kg'),
                     'handedness': validated_data.get('handedness', ''),
                     'emergency_contact_first_name': validated_data.get('emergency_contact_first_name', ''),
                     'emergency_contact_last_name': validated_data.get('emergency_contact_last_name', ''),
                     'emergency_contact_phone': validated_data.get('emergency_contact_phone', ''),
                     'emergency_contact_relationship': validated_data.get('emergency_contact_relationship', ''),
+                    'health_insurance': validated_data.get('health_insurance', ''),
+                    'blood_type': validated_data.get('blood_type', ''),
+                    'medical_conditions': validated_data.get('medical_conditions', ''),
                     'avatar': validated_data.get('avatar'),
                 }
+
+                print('profile_data', profile_data)
                 
                 # Remover campos None o vacíos (excepto los que pueden ser 0 o avatar)
-                profile_data = {k: v for k, v in profile_data.items() if v is not None and (v != '' or k in ['handedness', 'avatar'])}
+                profile_data = {k: v for k, v in profile_data.items() if v is not None and (v != '' or k in ['avatar'])}
                
                 # Crear o actualizar PlayerProfile basado en email (sin usuario)
                 profile, created = PlayerProfile.objects.update_or_create(

@@ -60,7 +60,16 @@ class PlayerProfileSerializer(serializers.ModelSerializer):
             'emergency_contact_last_name',
             'emergency_contact_phone',
             'emergency_contact_relationship',
+            # Emergency Contact
+            'emergency_contact_first_name',
+            'emergency_contact_last_name',
+            'emergency_contact_phone',
+            'emergency_contact_relationship',
             'emergency_contact_full_name',
+            # Medical Information
+            'health_insurance',
+            'blood_type',
+            'medical_conditions',
             # Timestamps
             'created_at',
             'updated_at'
@@ -107,7 +116,10 @@ class PlayerProfileCreateSerializer(serializers.ModelSerializer):
             'emergency_contact_first_name',
             'emergency_contact_last_name',
             'emergency_contact_phone',
-            'emergency_contact_relationship'
+            'emergency_contact_relationship',
+            'health_insurance',
+            'blood_type',
+            'medical_conditions'
         ]
     
     def validate_email(self, value):
@@ -196,7 +208,10 @@ class PlayerProfileUpdateSerializer(serializers.ModelSerializer):
             'emergency_contact_first_name',
             'emergency_contact_last_name',
             'emergency_contact_phone',
-            'emergency_contact_relationship'
+            'emergency_contact_relationship',
+            'health_insurance',
+            'blood_type',
+            'medical_conditions'
         ]
     
     def validate_email(self, value):
@@ -287,14 +302,18 @@ class PlayerSubscriptionSerializer(serializers.Serializer):
     phone = serializers.CharField(required=False, allow_blank=True)
     height_cm = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
     weight_kg = serializers.DecimalField(max_digits=5, decimal_places=2, required=False, allow_null=True)
-    """
     handedness = serializers.CharField(required=False, allow_blank=True)  # Accepts 'left', 'right', 'left_handed', etc.
     shirt_size = serializers.CharField(required=False, allow_blank=True)  # Not used in model, but accepted
-    """
     emergency_contact_first_name = serializers.CharField(required=False, allow_blank=True)
     emergency_contact_last_name = serializers.CharField(required=False, allow_blank=True)
     emergency_contact_phone = serializers.CharField(required=False, allow_blank=True)
+
     emergency_contact_relationship = serializers.CharField(required=False, allow_blank=True)
+    
+    # Medical Information
+    health_insurance = serializers.CharField(required=False, allow_blank=True)
+    blood_type = serializers.CharField(required=False, allow_blank=True)
+    medical_conditions = serializers.CharField(required=False, allow_blank=True)
     
     # Involvements - custom field that handles JSON string or list
     involvements = InvolvementsField()

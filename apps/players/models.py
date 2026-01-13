@@ -234,6 +234,34 @@ class PlayerProfile(models.Model):
         verbose_name='Emergency Contact Relationship'
     )
     
+    # 🏥 Medical Information
+    health_insurance = models.CharField(
+        max_length=150,
+        blank=True,
+        null=True,
+        verbose_name='Health Insurance'
+    )
+
+    shirt_size = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name='Shirt Size'
+    )
+    
+    blood_type = models.CharField(
+        max_length=5,
+        blank=True,
+        null=True,
+        verbose_name='Blood Type'
+    )
+    
+    medical_conditions = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name='Medical Conditions',
+        help_text='Allergies, chronic conditions, etc.'
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(
         default=timezone.now,
