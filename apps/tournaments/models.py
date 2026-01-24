@@ -1,24 +1,22 @@
 """
 Tournament models for managing sports tournaments and divisions.
 """
-from token import DOUBLESLASH
 from django.conf import settings
-from django.core.validators import MinValueValidator
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
-"""Publish the division."""
 from .exceptions import (
-        DivisionInsufficientApprovedPlayersError,
-        DivisionHasPendingInvolvementsError,
-        DivisionAlreadyPublishedError
-    )
+    DivisionInsufficientApprovedPlayersError,
+    DivisionHasPendingInvolvementsError,
+    DivisionAlreadyPublishedError
+)
 
 class TournamentFormat(models.TextChoices):
     """Tournament format choices."""
     KNOCKOUT = 'knockout', 'Single Elimination'
     DOUBLE_SLASH = 'double_slash', 'Double Elimination'
     ROUND_ROBIN = 'round_robin', 'Round Robin'
+    ROUND_ROBIN_KNOCKOUT = 'round_robin_knockout', 'Round Robin + Knockout'
 
 
 class GenderType(models.TextChoices):
@@ -743,3 +741,206 @@ class Involvement(models.Model):
         """Reject the involvement."""
         self.status = InvolvementStatus.REJECTED
         self.save(update_fields=['status', 'updated_at'])
+
+
+class TournamentGroup(models.Model):
+    """
+    Model representing a group within a tournament division.
+    Used for Round Robin + Knockout format.
+    """
+    division = models.ForeignKey(
+        TournamentDivision,
+        on_delete=models.CASCADE,
+        related_name='groups',
+        verbose_name='Division',
+        help_text='Division this group belongs to'
+    )
+    
+    name = models.CharField(
+        max_length=100,
+        verbose_name='Group Name',
+        help_text='Name of the group (e.g., "Grupo A", "Grupo B")'
+    )
+    
+    group_number = models.PositiveIntegerField(
+        verbose_name='Group Number',
+        help_text='Number of the group within the division'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        verbose_name='Created At'
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name='Updated At'
+    )
+    
+    class Meta:
+        verbose_name = 'Tournament Group'
+        verbose_name_plural = 'Tournament Groups'
+        ordering = ['division', 'group_number']
+        unique_together = [
+            ('division', 'group_number'),
+        ]
+        indexes = [
+            models.Index(fields=['division']),
+            models.Index(fields=['group_number']),
+        ]
+    
+    def __str__(self) -> str:
+        return f"{self.name} - {self.division.name}"
+    
+    def clean(self) -> None:
+        """Validate group data."""
+        # Validate division format
+        if self.division.format != TournamentFormat.ROUND_ROBIN_KNOCKOUT:
+            raise ValidationError(
+                'Groups can only be created for divisions with ROUND_ROBIN_KNOCKOUT format.'
+            )
+        
+        # Validate group number is unique within division
+        existing = TournamentGroup.objects.filter(
+            division=self.division,
+            group_number=self.group_number
+        ).exclude(pk=self.pk if self.pk else None)
+        
+        if existing.exists():
+            raise ValidationError(
+                f'Group number {self.group_number} already exists for this division.'
+            )
+    
+    def save(self, *args, **kwargs) -> None:
+        """Override save to run validation."""
+        self.clean()
+        super().save(*args, **kwargs)
+    
+    @property
+    def participant_count(self) -> int:
+        """Return the number of participants in this group."""
+        return self.standings.count()
+    
+    def validate_participant_count(self) -> None:
+        """Validate that group has between 3 and 5 participants."""
+        count = self.participant_count
+        if count < 3:
+            raise ValidationError(
+                f'Group must have at least 3 participants. Current: {count}'
+            )
+        if count > 5:
+            raise ValidationError(
+                f'Group cannot have more than 5 participants. Current: {count}'
+            )
+
+
+class GroupStanding(models.Model):
+    """
+    Model representing a player's standing within a tournament group.
+    Tracks statistics and positions for Round Robin + Knockout format.
+    """
+    group = models.ForeignKey(
+        TournamentGroup,
+        on_delete=models.CASCADE,
+        related_name='standings',
+        verbose_name='Group',
+        help_text='Group this standing belongs to'
+    )
+    
+    involvement = models.ForeignKey(
+        Involvement,
+        on_delete=models.CASCADE,
+        related_name='group_standings',
+        verbose_name='Involvement',
+        help_text='Player or team involvement in the tournament'
+    )
+    
+    # Statistics
+    matches_played = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Matches Played',
+        help_text='Number of matches played'
+    )
+    
+    matches_won = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Matches Won',
+        help_text='Number of matches won'
+    )
+    
+    matches_lost = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Matches Lost',
+        help_text='Number of matches lost'
+    )
+    
+    sets_won = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Sets Won',
+        help_text='Total sets won'
+    )
+    
+    sets_lost = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Sets Lost',
+        help_text='Total sets lost'
+    )
+    
+    points = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Points',
+        help_text='Points accumulated (e.g., 3 for win, 1 for loss)'
+    )
+    
+    # Positions
+    position_in_group = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Position in Group',
+        help_text='Position within the group'
+    )
+    
+    global_position = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Global Position',
+        help_text='Global position across all groups'
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        verbose_name='Created At'
+    )
+    
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name='Updated At'
+    )
+    
+    class Meta:
+        verbose_name = 'Group Standing'
+        verbose_name_plural = 'Group Standings'
+        ordering = ['group', 'position_in_group', 'global_position']
+        unique_together = [
+            ('group', 'involvement'),
+        ]
+        indexes = [
+            models.Index(fields=['group']),
+            models.Index(fields=['involvement']),
+            models.Index(fields=['position_in_group']),
+            models.Index(fields=['global_position']),
+            models.Index(fields=['points']),
+        ]
+    
+    def __str__(self) -> str:
+        player_name = self.involvement.player.full_name
+        if self.involvement.partner:
+            player_name = f"{player_name} / {self.involvement.partner.full_name}"
+        return f"{player_name} - {self.group.name} (Pos: {self.position_in_group or 'N/A'})"
+    
+    @property
+    def sets_difference(self) -> int:
+        """Calculate sets difference (sets_won - sets_lost)."""
+        return self.sets_won - self.sets_lost

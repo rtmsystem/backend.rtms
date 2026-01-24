@@ -439,7 +439,11 @@ class MatchBracketGenerationService:
         MatchValidator.validate_division_is_published(self.division)
         
         # Validate format is supported
-        if self.division.format not in [TournamentFormat.KNOCKOUT, TournamentFormat.DOUBLE_SLASH]:
+        if self.division.format not in [
+            TournamentFormat.KNOCKOUT, 
+            TournamentFormat.DOUBLE_SLASH,
+            TournamentFormat.ROUND_ROBIN_KNOCKOUT
+        ]:
             raise InvalidMatchFormatError(self.division.get_format_display())
         
         # Check if division already has matches
@@ -925,6 +929,131 @@ class MatchBracketGenerationService:
         
         return grand_final
     
+    def generate_group_phase_matches(self, groups) -> List[Match]:
+        """Generate round robin matches for group phase."""
+        from apps.tournaments.models import TournamentGroup
+        
+        all_matches = []
+        self.match_counter = 1  # Reset counter for group phase
+        
+        for group in groups:
+            if not isinstance(group, TournamentGroup):
+                continue
+            
+            # Get all standings (participants) in this group
+            standings = group.standings.select_related(
+                'involvement__player', 
+                'involvement__partner'
+            ).all()
+            
+            involvements = [standing.involvement for standing in standings]
+            num_participants = len(involvements)
+            
+            # Generate all possible match combinations (round robin)
+            # For n participants: n * (n-1) / 2 matches
+            match_number = 1
+            
+            for i in range(num_participants):
+                for j in range(i + 1, num_participants):
+                    inv1 = involvements[i]
+                    inv2 = involvements[j]
+                    
+                    # Create match code: G{group_number}-M{match_number}
+                    match_code = f"G{group.group_number}-M{match_number}"
+                    
+                    # Determine players
+                    player1 = inv1.player
+                    player2 = inv2.player
+                    partner1 = inv1.partner if self.division.participant_type == ParticipantType.DOUBLES else None
+                    partner2 = inv2.partner if self.division.participant_type == ParticipantType.DOUBLES else None
+                    
+                    # Use negative round_number to identify group phase matches
+                    match = self.create_match(
+                        division=self.division,
+                        match_code=match_code,
+                        round_number=-group.group_number,  # Negative for group phase
+                        player1=player1,
+                        player2=player2,
+                        partner1=partner1,
+                        partner2=partner2,
+                        is_losers_bracket=False,
+                        next_match=None,  # No next_match in group phase
+                    )
+                    
+                    all_matches.append(match)
+                    match_number += 1
+        
+        logger.info(
+            f"Generated {len(all_matches)} group phase matches for division "
+            f"{self.division.id} ({self.division.name})"
+        )
+        
+        return all_matches
+    
+    def generate_knockout_phase_from_standings(self) -> List[Match]:
+        """Generate knockout bracket from global standings."""
+        from apps.tournaments.models import GroupStanding, TournamentFormat
+        from apps.matches.models import MatchStatus
+        
+        # Validate format
+        if self.division.format != TournamentFormat.ROUND_ROBIN_KNOCKOUT:
+            raise InvalidMatchFormatError(
+                "Knockout phase generation is only available for ROUND_ROBIN_KNOCKOUT format."
+            )
+        
+        # Validate all group phase matches are completed
+        group_matches = Match.objects.filter(
+            division=self.division,
+            round_number__lt=0  # Negative round numbers are group phase
+        )
+        
+        incomplete_matches = group_matches.exclude(status=MatchStatus.COMPLETED)
+        if incomplete_matches.exists():
+            raise MatchBusinessError(
+                message="All group phase matches must be completed before generating knockout phase.",
+                error_code="GROUP_PHASE_INCOMPLETE",
+                errors={'matches': ['Some group phase matches are not completed.']}
+            )
+        
+        # Get standings ordered by global position
+        standings = GroupStanding.objects.filter(
+            group__division=self.division
+        ).select_related(
+            'involvement__player',
+            'involvement__partner'
+        ).order_by('global_position')
+        
+        if not standings.exists():
+            raise InsufficientPlayersError(
+                min_required=2,
+                actual=0
+            )
+        
+        # Convert standings to participants format
+        participants = []
+        for standing in standings:
+            inv = standing.involvement
+            participants.append({
+                'player1': inv.player,
+                'player2': None,
+                'partner1': inv.partner if self.division.participant_type == ParticipantType.DOUBLES else None,
+                'partner2': None,
+            })
+        
+        # Generate single elimination bracket
+        # Reset match counter for knockout phase
+        self.match_counter = 1
+        
+        # Use the existing single elimination logic
+        matches = self.generate_single_elimination_bracket(participants)
+        
+        logger.info(
+            f"Generated {len(matches)} knockout phase matches for division "
+            f"{self.division.id} ({self.division.name}) from standings"
+        )
+        
+        return matches
+    
     @transaction.atomic
     def execute(self) -> List[Match]:
         """Execute bracket generation."""
@@ -937,6 +1066,15 @@ class MatchBracketGenerationService:
             matches = self.generate_single_elimination_bracket(participants)
         elif self.division.format == TournamentFormat.DOUBLE_SLASH:
             matches = self.generate_double_elimination_bracket(participants)
+        elif self.division.format == TournamentFormat.ROUND_ROBIN_KNOCKOUT:
+            # For ROUND_ROBIN_KNOCKOUT, we need groups first
+            # This method should not be called directly for this format
+            # Use generate_group_phase_matches instead
+            raise InvalidMatchFormatError(
+                "For ROUND_ROBIN_KNOCKOUT format, use generate_group_phase_matches() "
+                "to create group phase matches first, then generate_knockout_phase_from_standings() "
+                "after group phase is complete."
+            )
         else:
             raise InvalidMatchFormatError(self.division.get_format_display())
         

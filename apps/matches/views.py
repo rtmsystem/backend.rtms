@@ -417,3 +417,178 @@ def generate_bracket(request):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
+
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Generate group phase matches",
+    operation_description="Generate round robin matches for group phase in ROUND_ROBIN_KNOCKOUT format",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'division_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'max_sets': openapi.Schema(type=openapi.TYPE_INTEGER, default=5),
+            'points_per_set': openapi.Schema(type=openapi.TYPE_INTEGER, default=15),
+        },
+        required=['division_id']
+    ),
+    tags=["Matches"],
+)
+@api_view(['POST'])
+@permission_classes([CanGenerateBracket])
+def generate_group_phase_matches(request):
+    """Generate group phase matches for a division."""
+    from apps.tournaments.models import TournamentDivision, TournamentFormat
+    
+    division_id = request.data.get('division_id')
+    max_sets = request.data.get('max_sets', 5)
+    points_per_set = request.data.get('points_per_set', 15)
+    
+    if not division_id:
+        return APIResponse.validation_error(
+            errors={'division_id': ['This field is required.']},
+            message="Division ID is required"
+        )
+    
+    try:
+        division = TournamentDivision.objects.get(id=division_id)
+    except TournamentDivision.DoesNotExist:
+        return APIResponse.not_found(
+            message="Division not found",
+            error_code="DIVISION_NOT_FOUND"
+        )
+    
+    # Validate format
+    if division.format != TournamentFormat.ROUND_ROBIN_KNOCKOUT:
+        return APIResponse.validation_error(
+            errors={'format': ['This endpoint is only for ROUND_ROBIN_KNOCKOUT format.']},
+            message="Division format must be ROUND_ROBIN_KNOCKOUT"
+        )
+    
+    try:
+        # Get groups for this division
+        from apps.tournaments.models import TournamentGroup
+        groups = TournamentGroup.objects.filter(division=division).order_by('group_number')
+        
+        if not groups.exists():
+            return APIResponse.validation_error(
+                errors={'groups': ['No groups found. Generate groups first.']},
+                message="Groups must be generated before creating group phase matches"
+            )
+        
+        # Generate matches
+        service = MatchBracketGenerationService(
+            division=division,
+            max_sets=max_sets,
+            points_per_set=points_per_set,
+            user=request.user
+        )
+        
+        matches = service.generate_group_phase_matches(groups)
+        
+        # Serialize matches
+        matches_serializer = MatchReadSerializer(matches, many=True)
+        
+        return APIResponse.created(
+            data=matches_serializer.data,
+            message=f"Group phase matches generated successfully. {len(matches)} matches created."
+        )
+    
+    except MatchBusinessError as e:
+        return APIResponse.validation_error(
+            errors=e.error_dict if hasattr(e, 'error_dict') else {'error': [str(e)]},
+            message=str(e),
+            error_code=e.error_code
+        )
+    except Exception as e:
+        logger.exception("Unexpected error generating group phase matches")
+        return APIResponse.error(
+            message="An unexpected error occurred while generating group phase matches",
+            error_code="GROUP_PHASE_GENERATION_ERROR",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Generate knockout phase from standings",
+    operation_description="Generate knockout bracket from global standings after group phase is complete",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'division_id': openapi.Schema(type=openapi.TYPE_INTEGER),
+            'max_sets': openapi.Schema(type=openapi.TYPE_INTEGER, default=5),
+            'points_per_set': openapi.Schema(type=openapi.TYPE_INTEGER, default=15),
+        },
+        required=['division_id']
+    ),
+    tags=["Matches"],
+)
+@api_view(['POST'])
+@permission_classes([CanGenerateBracket])
+def generate_knockout_from_standings(request):
+    """Generate knockout bracket from standings."""
+    from apps.tournaments.models import TournamentDivision, TournamentFormat
+    
+    division_id = request.data.get('division_id')
+    max_sets = request.data.get('max_sets', 5)
+    points_per_set = request.data.get('points_per_set', 15)
+    
+    if not division_id:
+        return APIResponse.validation_error(
+            errors={'division_id': ['This field is required.']},
+            message="Division ID is required"
+        )
+    
+    try:
+        division = TournamentDivision.objects.get(id=division_id)
+    except TournamentDivision.DoesNotExist:
+        return APIResponse.not_found(
+            message="Division not found",
+            error_code="DIVISION_NOT_FOUND"
+        )
+    
+    # Validate format
+    if division.format != TournamentFormat.ROUND_ROBIN_KNOCKOUT:
+        return APIResponse.validation_error(
+            errors={'format': ['This endpoint is only for ROUND_ROBIN_KNOCKOUT format.']},
+            message="Division format must be ROUND_ROBIN_KNOCKOUT"
+        )
+    
+    try:
+        # Calculate standings first if not already calculated
+        from apps.tournaments.services import StandingCalculationService
+        standing_service = StandingCalculationService(division=division, user=request.user)
+        standing_service.execute()
+        
+        # Generate knockout bracket
+        service = MatchBracketGenerationService(
+            division=division,
+            max_sets=max_sets,
+            points_per_set=points_per_set,
+            user=request.user
+        )
+        
+        matches = service.generate_knockout_phase_from_standings()
+        
+        # Serialize matches
+        matches_serializer = MatchReadSerializer(matches, many=True)
+        
+        return APIResponse.created(
+            data=matches_serializer.data,
+            message=f"Knockout phase generated successfully. {len(matches)} matches created."
+        )
+    
+    except MatchBusinessError as e:
+        return APIResponse.validation_error(
+            errors=e.error_dict if hasattr(e, 'error_dict') else {'error': [str(e)]},
+            message=str(e),
+            error_code=e.error_code
+        )
+    except Exception as e:
+        logger.exception("Unexpected error generating knockout phase")
+        return APIResponse.error(
+            message="An unexpected error occurred while generating knockout phase",
+            error_code="KNOCKOUT_PHASE_GENERATION_ERROR",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+

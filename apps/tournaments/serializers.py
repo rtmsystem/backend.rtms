@@ -6,7 +6,8 @@ from django.utils import timezone
 
 from .models import (
     Tournament, TournamentDivision, Involvement,
-    TournamentFormat, GenderType, ParticipantType, TournamentStatus, InvolvementStatus
+    TournamentFormat, GenderType, ParticipantType, TournamentStatus, InvolvementStatus,
+    TournamentGroup, GroupStanding
 )
 from apps.users.models import User
 from apps.players.models import PlayerProfile
@@ -638,4 +639,64 @@ class ApprovedPlayerListSerializer(serializers.ModelSerializer):
         """Get player last name safely."""
         if obj.last_name:
             return obj.last_name
+        return None
+
+
+class TournamentGroupSerializer(serializers.ModelSerializer):
+    """Serializer for TournamentGroup model."""
+    
+    participant_count = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = TournamentGroup
+        fields = [
+            'id', 'division', 'name', 'group_number',
+            'participant_count', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class GroupStandingSerializer(serializers.ModelSerializer):
+    """Serializer for GroupStanding model."""
+    
+    player_name = serializers.SerializerMethodField()
+    partner_name = serializers.SerializerMethodField()
+    team_name = serializers.SerializerMethodField()
+    sets_difference = serializers.ReadOnlyField()
+    
+    class Meta:
+        model = GroupStanding
+        fields = [
+            'id', 'group', 'involvement',
+            'matches_played', 'matches_won', 'matches_lost',
+            'sets_won', 'sets_lost', 'sets_difference',
+            'points', 'position_in_group', 'global_position',
+            'player_name', 'partner_name', 'team_name',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'id', 'matches_played', 'matches_won', 'matches_lost',
+            'sets_won', 'sets_lost', 'points',
+            'position_in_group', 'global_position',
+            'created_at', 'updated_at'
+        ]
+    
+    def get_player_name(self, obj):
+        """Get player name."""
+        if obj.involvement and obj.involvement.player:
+            return obj.involvement.player.full_name
+        return None
+    
+    def get_partner_name(self, obj):
+        """Get partner name if exists."""
+        if obj.involvement and obj.involvement.partner:
+            return obj.involvement.partner.full_name
+        return None
+    
+    def get_team_name(self, obj):
+        """Get team name for display."""
+        if obj.involvement:
+            if obj.involvement.partner:
+                return f"{obj.involvement.player.full_name} / {obj.involvement.partner.full_name}"
+            return obj.involvement.player.full_name
         return None

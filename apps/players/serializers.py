@@ -363,6 +363,21 @@ class PlayerSubscriptionSerializer(serializers.Serializer):
         from apps.payments.models import PaymentMethod
         self.fields['payment_method'].choices = PaymentMethod.choices
     
+    def to_internal_value(self, data):
+        """
+        Override to handle 'null' string in payment_method.
+        Frontend might send 'null' as string for empty values.
+        """
+        # Create a mutable copy if necessary
+        if hasattr(data, 'copy'):
+            data = data.copy()
+        
+        # Handle payment_method 'null' string
+        if 'payment_method' in data and data.get('payment_method') == 'null':
+            data['payment_method'] = None
+            
+        return super().to_internal_value(data)
+    
     def validate_email(self, value):
         """Validate email. If user authenticated, must match."""
         request = self.context.get('request')
@@ -422,6 +437,35 @@ class PlayerSubscriptionSerializer(serializers.Serializer):
             raise serializers.ValidationError({
                 'terms_conditions_accepted': 'You must accept the terms and conditions.'
             })
+
+        # payment_method y total_paid solo son requeridos cuando alguna división acepta pagos
+        from apps.tournaments.models import TournamentDivision
+
+        involvements = attrs.get('involvements') or []
+        any_division_has_payment = False
+        for inv in involvements:
+            division_id = inv.get('division_id')
+            if not division_id:
+                continue
+            try:
+                division = TournamentDivision.objects.get(id=division_id)
+                if division.has_payment_subscription:
+                    any_division_has_payment = True
+                    break
+            except TournamentDivision.DoesNotExist:
+                continue
+
+        if any_division_has_payment:
+            total_paid = attrs.get('total_paid')
+            payment_method = attrs.get('payment_method')
+            if total_paid is None:
+                raise serializers.ValidationError({
+                    'total_paid': 'Total paid is required when the division accepts payments.'
+                })
+            if not payment_method:
+                raise serializers.ValidationError({
+                    'payment_method': 'Payment method is required when the division accepts payments.'
+                })
         
         return attrs
 

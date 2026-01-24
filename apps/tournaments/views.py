@@ -31,6 +31,8 @@ from .serializers import (
     InvolvementCreateSerializer,
     InvolvementUpdateSerializer,
     InvolvementListSerializer,
+    TournamentGroupSerializer,
+    GroupStandingSerializer,
 )
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -1522,6 +1524,149 @@ def publish_division(request, tournament_id, pk):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-          
 
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Generate groups",
+    operation_description="Generate groups for a division with ROUND_ROBIN_KNOCKOUT format",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'min_per_group': openapi.Schema(type=openapi.TYPE_INTEGER, default=3),
+            'max_per_group': openapi.Schema(type=openapi.TYPE_INTEGER, default=5),
+        }
+    ),
+    tags=["Tournaments"],
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generate_groups(request, tournament_id, pk):
+    """Generate groups for a division."""
+    try:
+        Tournament.objects.select_related('organization').get(
+            pk=tournament_id,
+            organization__administrators=request.user
+        )
+    except Tournament.DoesNotExist:
+        return APIResponse.not_found(
+            message="Tournament not found or you don't have permission to access it",
+            error_code="TOURNAMENT_NOT_FOUND"
+        )
+    
+    try:
+        division = TournamentDivision.objects.get(
+            pk=pk,
+            tournament_id=tournament_id
+        )
+    except TournamentDivision.DoesNotExist:
+        return APIResponse.not_found(
+            message="Division not found",
+            error_code="DIVISION_NOT_FOUND"
+        )
+    
+    try:
+        from .services import GroupGenerationService
+        
+        min_per_group = request.data.get('min_per_group', 3)
+        max_per_group = request.data.get('max_per_group', 5)
+        
+        service = GroupGenerationService(
+            division=division,
+            min_per_group=min_per_group,
+            max_per_group=max_per_group,
+            user=request.user
+        )
+        
+        groups = service.execute()
+        
+        from .serializers import TournamentGroupSerializer
+        serializer = TournamentGroupSerializer(groups, many=True)
+        
+        return APIResponse.created(
+            data=serializer.data,
+            message=f"Generated {len(groups)} groups successfully."
+        )
+    except (ValueError, TournamentBusinessError) as e:
+        return APIResponse.validation_error(
+            errors={'error': [str(e)]},
+            message=str(e),
+            error_code=getattr(e, 'error_code', 'GROUP_GENERATION_ERROR')
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Unexpected error generating groups: {e}")
+        return APIResponse.error(
+            message="An unexpected error occurred",
+            error_code="GROUP_GENERATION_ERROR",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@swagger_auto_schema(
+    method='post',
+    operation_summary="Calculate standings",
+    operation_description="Calculate standings for groups and global positions",
+    tags=["Tournaments"],
+)
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def calculate_standings(request, tournament_id, pk):
+    """Calculate standings for a division."""
+    try:
+        Tournament.objects.select_related('organization').get(
+            pk=tournament_id,
+            organization__administrators=request.user
+        )
+    except Tournament.DoesNotExist:
+        return APIResponse.not_found(
+            message="Tournament not found or you don't have permission to access it",
+            error_code="TOURNAMENT_NOT_FOUND"
+        )
+    
+    try:
+        division = TournamentDivision.objects.get(
+            pk=pk,
+            tournament_id=tournament_id
+        )
+    except TournamentDivision.DoesNotExist:
+        return APIResponse.not_found(
+            message="Division not found",
+            error_code="DIVISION_NOT_FOUND"
+        )
+    
+    try:
+        from .services import StandingCalculationService
+        
+        service = StandingCalculationService(
+            division=division,
+            user=request.user
+        )
+        
+        standings = service.execute()
+        
+        from .serializers import GroupStandingSerializer
+        serializer = GroupStandingSerializer(standings, many=True)
+        
+        return APIResponse.success(
+            data=serializer.data,
+            message="Standings calculated successfully."
+        )
+    except (ValueError, TournamentBusinessError) as e:
+        return APIResponse.validation_error(
+            errors={'error': [str(e)]},
+            message=str(e),
+            error_code=getattr(e, 'error_code', 'STANDING_CALCULATION_ERROR')
+        )
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.exception(f"Unexpected error calculating standings: {e}")
+        return APIResponse.error(
+            message="An unexpected error occurred",
+            error_code="STANDING_CALCULATION_ERROR",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+          
     
