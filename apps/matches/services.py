@@ -405,12 +405,41 @@ class MatchScoreService:
         winner = self.calculate_winner()
         self.update_match_status(winner)
         
+        # Trigger standings calculation if applicable
+        self.trigger_standings_calculation()
+        
         logger.info(
             f"Scores registered for match {self.match.id} ({self.match.match_code}) "
             f"by user {self.user.id if self.user else 'system'}"
         )
         
         return self.match
+
+    def trigger_standings_calculation(self) -> None:
+        """Trigger standings calculation for the division."""
+        # Only for ROUND_ROBIN_KNOCKOUT format
+        # Import dynamically to avoid circular imports
+        from apps.tournaments.models import TournamentFormat
+        
+        if self.match.division.format == TournamentFormat.ROUND_ROBIN_KNOCKOUT:
+            try:
+                from apps.tournaments.services import StandingCalculationService
+                
+                service = StandingCalculationService(
+                    division=self.match.division,
+                    user=self.user
+                )
+                service.execute()
+                
+                logger.info(
+                    f"Standings calculated for division {self.match.division.id} "
+                    f"triggered by match {self.match.id}"
+                )
+            except Exception as e:
+                # Log error but don't fail the match score update
+                logger.error(
+                    f"Error calculating standings after match {self.match.id}: {e}"
+                )
 
 
 class MatchBracketGenerationService:

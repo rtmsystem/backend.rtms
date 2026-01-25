@@ -115,7 +115,7 @@ class Match(models.Model):
     )
     
     # Bracket structure
-    round_number = models.PositiveIntegerField(
+    round_number = models.IntegerField(
         null=True,
         blank=True,
         verbose_name='Round Number',

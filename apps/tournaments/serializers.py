@@ -642,20 +642,6 @@ class ApprovedPlayerListSerializer(serializers.ModelSerializer):
         return None
 
 
-class TournamentGroupSerializer(serializers.ModelSerializer):
-    """Serializer for TournamentGroup model."""
-    
-    participant_count = serializers.ReadOnlyField()
-    
-    class Meta:
-        model = TournamentGroup
-        fields = [
-            'id', 'division', 'name', 'group_number',
-            'participant_count', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-
 class GroupStandingSerializer(serializers.ModelSerializer):
     """Serializer for GroupStanding model."""
     
@@ -700,3 +686,18 @@ class GroupStandingSerializer(serializers.ModelSerializer):
                 return f"{obj.involvement.player.full_name} / {obj.involvement.partner.full_name}"
             return obj.involvement.player.full_name
         return None
+
+
+class TournamentGroupSerializer(serializers.ModelSerializer):
+    """Serializer for TournamentGroup model."""
+    
+    participant_count = serializers.ReadOnlyField()
+    standings = GroupStandingSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = TournamentGroup
+        fields = [
+            'id', 'division', 'name', 'group_number',
+            'participant_count', 'standings', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

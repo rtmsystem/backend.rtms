@@ -64,14 +64,15 @@ tournament_urlpatterns = [
         views.publish_division,
         name="publish-division",
     ),
+    path("<int:tournament_id>/divisions/<int:pk>/groups/",
+        views.list_groups_with_standings,
+        name="list-groups-standings",
+    ),
     path("<int:tournament_id>/divisions/<int:pk>/generate-groups/",
         views.generate_groups,
         name="generate-groups",
     ),
-    path("<int:tournament_id>/divisions/<int:pk>/calculate-standings/",
-        views.calculate_standings,
-        name="calculate-standings",
-    ),
+
 ]
 
 urlpatterns = tournament_urlpatterns

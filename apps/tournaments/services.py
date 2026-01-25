@@ -396,7 +396,7 @@ class StandingCalculationService:
         def sort_key(standing: GroupStanding) -> Tuple:
             return (
                 -standing.points,
-                -standing.sets_difference,
+                -standing.sets_difference,4
                 -standing.sets_won,
             )
         
