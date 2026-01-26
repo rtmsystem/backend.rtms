@@ -1536,22 +1536,19 @@ def publish_division(request, tournament_id, pk):
 )
 @api_view(["GET"])
 @permission_classes([AllowAny])
-def list_groups_with_standings(request, tournament_id, pk):
+def list_groups_with_standings(request, tournament_id):
     """List groups with standings for a division."""
     try:
         # Check if division exists
-        division = TournamentDivision.objects.select_related('tournament').get(
-            pk=pk,
-            tournament_id=tournament_id
-        )
+        tournament = Tournament.objects.get(pk=tournament_id)
         
         # Helper to check if user can view
         can_view = False
-        if division.tournament.status == TournamentStatus.PUBLISHED:
+        if tournament.status == TournamentStatus.PUBLISHED:
             can_view = True
         elif request.user.is_authenticated:
             # Check if admin
-             if request.user.administered_organizations.filter(id=division.tournament.organization_id).exists():
+             if request.user.administered_organizations.filter(id=tournament.organization_id).exists():
                  can_view = True
         
         if not can_view:
@@ -1561,13 +1558,13 @@ def list_groups_with_standings(request, tournament_id, pk):
             )
 
         groups = TournamentGroup.objects.filter(
-            division=division
+            division__tournament=tournament
         ).prefetch_related(
             'standings',
             'standings__involvement',
             'standings__involvement__player',
             'standings__involvement__partner'
-        ).order_by('group_number')
+        ).order_by('division__id', 'group_number')
         
         serializer = TournamentGroupSerializer(groups, many=True)
         
@@ -1576,10 +1573,10 @@ def list_groups_with_standings(request, tournament_id, pk):
             message="Groups retrieved successfully"
         )
         
-    except TournamentDivision.DoesNotExist:
+    except Tournament.DoesNotExist:
         return APIResponse.not_found(
-            message="Division not found",
-            error_code="DIVISION_NOT_FOUND"
+            message="Tournament not found",
+            error_code="TOURNAMENT_NOT_FOUND"
         )
     except Exception as e:
         import logging
