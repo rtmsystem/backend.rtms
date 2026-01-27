@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from datetime import date, time, datetime, timedelta
 
 from apps.tournaments.models import TournamentDivision, InvolvementStatus, TournamentFormat, ParticipantType
 from apps.players.models import PlayerProfile
@@ -46,6 +47,7 @@ class MatchCreationService:
         is_losers_bracket: bool = False,
         next_match: Optional[Match] = None,
         scheduled_at: Optional[timezone.datetime] = None,
+        location: Optional[str] = None,
         notes: str = '',
     ) -> None:
         self.division = division
@@ -62,6 +64,7 @@ class MatchCreationService:
         self.is_losers_bracket = is_losers_bracket
         self.next_match = next_match
         self.scheduled_at = scheduled_at
+        self.location = location
         self.notes = notes
         self.match = None
     
@@ -95,6 +98,7 @@ class MatchCreationService:
             is_losers_bracket=self.is_losers_bracket,
             next_match=self.next_match,
             scheduled_at=self.scheduled_at,
+            location=self.location,
             notes=self.notes,
             created_by=self.user,
             status=MatchStatus.PENDING,
@@ -958,8 +962,19 @@ class MatchBracketGenerationService:
         
         return grand_final
     
-    def generate_group_phase_matches(self, groups) -> List[Match]:
-        """Generate round robin matches for group phase."""
+    def generate_group_phase_matches(
+        self, 
+        groups,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        start_hour: Optional[time] = None,
+        end_hour: Optional[time] = None,
+        available_courts: int = 1,
+        match_duration_minutes: int = 60
+    ) -> List[Match]:
+        """
+        Generate round robin matches for group phase and optionally schedule them.
+        """
         from apps.tournaments.models import TournamentGroup
         
         all_matches = []
@@ -1012,12 +1027,134 @@ class MatchBracketGenerationService:
                     all_matches.append(match)
                     match_number += 1
         
+        # Schedule matches if scheduling parameters are provided
+        if start_date and end_date and start_hour and end_hour:
+            self._schedule_matches(
+                all_matches,
+                start_date,
+                end_date,
+                start_hour,
+                end_hour,
+                available_courts,
+                match_duration_minutes
+            )
+        
         logger.info(
             f"Generated {len(all_matches)} group phase matches for division "
             f"{self.division.id} ({self.division.name})"
         )
         
         return all_matches
+
+    def _schedule_matches(
+        self,
+        matches: List[Match],
+        start_date: date,
+        end_date: date,
+        start_hour: time,
+        end_hour: time,
+        available_courts: int,
+        match_duration_minutes: int
+    ) -> None:
+        """Schedule matches based on constraints."""
+        current_date = start_date
+        duration = timedelta(minutes=match_duration_minutes)
+        
+        # Generate time slots
+        slots = []
+        while current_date <= end_date:
+            current_time = datetime.combine(current_date, start_hour)
+            end_time_limit = datetime.combine(current_date, end_hour)
+            
+            while current_time + duration <= end_time_limit:
+                slot_start = current_time
+                slot_end = current_time + duration
+                
+                # Create slots for each court
+                for court_num in range(1, available_courts + 1):
+                    slots.append({
+                        'start': timezone.make_aware(slot_start),
+                        'end': timezone.make_aware(slot_end),
+                        'location': f"Cancha {court_num}",
+                        'court_id': court_num
+                    })
+                
+                current_time += duration
+            
+            current_date += timedelta(days=1)
+        
+        # Sort slots by time
+        slots.sort(key=lambda x: x['start'])
+        
+        # Track player schedules to avoid conflicts
+        # Map: player_id -> List[(start, end)]
+        player_schedules = {}
+        
+        # Assign matches to slots
+        slot_index = 0
+        scheduled_count = 0
+        
+        # Track used slots to prevent double booking
+        used_slots = set()
+        
+        for match in matches:
+            if slot_index >= len(slots):
+                logger.warning(f"Not enough slots to schedule match {match.match_code}")
+                break
+                
+            # Find a suitable slot
+            assigned = False
+            
+            # Identify players in this match
+            players_in_match = []
+            if match.player1: players_in_match.append(match.player1.id)
+            if match.player2: players_in_match.append(match.player2.id)
+            if match.partner1: players_in_match.append(match.partner1.id)
+            if match.partner2: players_in_match.append(match.partner2.id)
+            
+            for i in range(len(slots)):
+                if i in used_slots:
+                    continue
+                
+                slot = slots[i]
+                start = slot['start']
+                end = slot['end']
+                
+                # Check player conflicts
+                has_conflict = False
+                for player_id in players_in_match:
+                    if player_id in player_schedules:
+                        for busy_start, busy_end in player_schedules[player_id]:
+                            # Check overlap
+                            if (start < busy_end) and (end > busy_start):
+                                has_conflict = True
+                                break
+                    if has_conflict:
+                        break
+                
+                if not has_conflict:
+                    # Assign match to this slot
+                    match.scheduled_at = start
+                    match.location = slot['location']
+                    match.save()
+                    
+                    # Mark slot as used
+                    used_slots.add(i)
+                    
+                    # Mark players as busy
+                    for player_id in players_in_match:
+                        if player_id not in player_schedules:
+                            player_schedules[player_id] = []
+                        player_schedules[player_id].append((start, end))
+                    
+                    assigned = True
+                    scheduled_count += 1
+                    break
+            
+            if not assigned:
+                logger.warning(f"Could not find valid slot for match {match.match_code}")
+
+        logger.info(f"Scheduled {scheduled_count} out of {len(matches)} matches.")
     
     def generate_knockout_phase_from_standings(self) -> List[Match]:
         """Generate knockout bracket from global standings."""

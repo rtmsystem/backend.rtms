@@ -166,6 +166,14 @@ class Match(models.Model):
         verbose_name='Scheduled At',
         help_text='Scheduled date and time for the match'
     )
+
+    location = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name='Location',
+        help_text='Court or location where the match is played'
+    )
     
     started_at = models.DateTimeField(
         null=True,

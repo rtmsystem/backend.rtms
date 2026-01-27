@@ -428,6 +428,12 @@ def generate_bracket(request):
             'division_id': openapi.Schema(type=openapi.TYPE_INTEGER),
             'max_sets': openapi.Schema(type=openapi.TYPE_INTEGER, default=5),
             'points_per_set': openapi.Schema(type=openapi.TYPE_INTEGER, default=15),
+            'start_date': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE, description="Start date for scheduling (YYYY-MM-DD)"),
+            'end_date': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_DATE, description="End date for scheduling (YYYY-MM-DD)"),
+            'start_hour': openapi.Schema(type=openapi.TYPE_STRING, format='time', description="Daily start time (HH:MM)"),
+            'end_hour': openapi.Schema(type=openapi.TYPE_STRING, format='time', description="Daily end time (HH:MM)"),
+            'available_courts': openapi.Schema(type=openapi.TYPE_INTEGER, default=1, description="Number of available courts"),
+            'match_duration_minutes': openapi.Schema(type=openapi.TYPE_INTEGER, default=60, description="Duration of each match in minutes"),
         },
         required=['division_id']
     ),
@@ -442,6 +448,33 @@ def generate_group_phase_matches(request):
     division_id = request.data.get('division_id')
     max_sets = request.data.get('max_sets', 5)
     points_per_set = request.data.get('points_per_set', 15)
+    
+    # Scheduling parameters
+    start_date = request.data.get('start_date')
+    end_date = request.data.get('end_date')
+    start_hour = request.data.get('start_hour')
+    end_hour = request.data.get('end_hour')
+    available_courts = request.data.get('available_courts', 1)
+    match_duration_minutes = request.data.get('match_duration_minutes', 60)
+    
+    # Parse dates and times if provided
+    parsed_start_date = None
+    parsed_end_date = None
+    parsed_start_hour = None
+    parsed_end_hour = None
+    
+    if start_date and end_date and start_hour and end_hour:
+        try:
+            from datetime import datetime
+            parsed_start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            parsed_end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            parsed_start_hour = datetime.strptime(start_hour, '%H:%M').time()
+            parsed_end_hour = datetime.strptime(end_hour, '%H:%M').time()
+        except ValueError:
+            return APIResponse.validation_error(
+                errors={'scheduling': ['Invalid date or time format. Use YYYY-MM-DD for dates and HH:MM for times.']},
+                message="Invalid scheduling parameters"
+            )
     
     if not division_id:
         return APIResponse.validation_error(
@@ -483,7 +516,15 @@ def generate_group_phase_matches(request):
             user=request.user
         )
         
-        matches = service.generate_group_phase_matches(groups)
+        matches = service.generate_group_phase_matches(
+            groups,
+            start_date=parsed_start_date,
+            end_date=parsed_end_date,
+            start_hour=parsed_start_hour,
+            end_hour=parsed_end_hour,
+            available_courts=int(available_courts),
+            match_duration_minutes=int(match_duration_minutes)
+        )
         
         # Serialize matches
         matches_serializer = MatchReadSerializer(matches, many=True)

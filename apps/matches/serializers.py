@@ -46,7 +46,7 @@ class MatchListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'match_code', 'division_name', 'tournament_name',
             'match_type', 'status', 'player1_name', 'player2_name',
-            'round_number', 'is_losers_bracket', 'scheduled_at',
+            'round_number', 'is_losers_bracket', 'scheduled_at', 'location',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -78,7 +78,7 @@ class MatchReadSerializer(serializers.ModelSerializer):
             'match_type', 'status', 'max_sets', 'points_per_set',
             'round_number', 'is_losers_bracket', 'next_match', 'next_match_code',
             'winner', 'winner_partner',
-            'scheduled_at', 'started_at', 'completed_at',
+            'scheduled_at', 'location', 'started_at', 'completed_at',
             'sets', 'sets_to_win', 'sets_won_by_player1', 'sets_won_by_player2',
             'notes', 'created_by', 'created_by_name',
             'created_at', 'updated_at'
@@ -99,7 +99,7 @@ class MatchWriteSerializer(serializers.ModelSerializer):
             'player1', 'player2', 'partner1', 'partner2',
             'max_sets', 'points_per_set',
             'round_number', 'is_losers_bracket', 'next_match',
-            'scheduled_at', 'notes'
+            'scheduled_at', 'location', 'notes'
         ]
     
     def validate_max_sets(self, value):

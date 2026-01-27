@@ -4,7 +4,10 @@ Admin configuration for tournaments app.
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Tournament, TournamentDivision, Involvement, InvolvementStatus
+from .models import (
+    Tournament, TournamentDivision, Involvement, InvolvementStatus,
+    TournamentGroup, GroupStanding
+)
 
 
 @admin.register(Tournament)
@@ -179,3 +182,39 @@ class InvolvementAdmin(admin.ModelAdmin):
         queryset.update(paid=False)
         self.message_user(request, f'{queryset.count()} involvements marked as unpaid.')
     mark_as_unpaid.short_description = 'Mark as unpaid'
+
+
+class GroupStandingInline(admin.TabularInline):
+    """Inline administration for GroupStanding."""
+    model = GroupStanding
+    extra = 0
+    raw_id_fields = ['involvement']
+    fields = [
+        'involvement', 'matches_played', 'matches_won', 'matches_lost',
+        'sets_won', 'sets_lost', 'points', 'position_in_group'
+    ]
+    readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(TournamentGroup)
+class TournamentGroupAdmin(admin.ModelAdmin):
+    """Admin configuration for TournamentGroup model."""
+    
+    list_display = [
+        'name', 'division', 'group_number', 'participant_count', 'created_at'
+    ]
+    
+    list_filter = [
+        'division__tournament',
+        'division'
+    ]
+    
+    search_fields = [
+        'name', 'division__name', 'division__tournament__name'
+    ]
+    
+    readonly_fields = ['created_at', 'updated_at']
+    
+    inlines = [GroupStandingInline]
+    
+    raw_id_fields = ['division']
