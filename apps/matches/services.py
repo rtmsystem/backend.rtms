@@ -286,7 +286,7 @@ class MatchListService:
                 Q(partner2_id=self.player_id)
             )
         
-        return queryset.order_by('division', 'round_number', 'match_code')
+        return queryset.order_by('scheduled_at','created_at')
     
     def execute(self):
         """Execute the service flow."""
