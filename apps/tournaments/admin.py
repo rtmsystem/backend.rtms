@@ -143,6 +143,9 @@ class InvolvementAdmin(admin.ModelAdmin):
         ('Timestamps', {
             'fields': ('created_at', 'updated_at')
         }),
+        ('knockout_points', {
+            'fields': ('knockout_points',)
+        })
     )
     
     raw_id_fields = ['player', 'partner', 'tournament', 'division', 'approved_by']

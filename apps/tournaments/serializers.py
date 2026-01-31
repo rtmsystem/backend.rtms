@@ -401,11 +401,14 @@ class InvolvementSerializer(serializers.ModelSerializer):
     is_pending = serializers.ReadOnlyField()
     is_rejected = serializers.ReadOnlyField()
     knockout_points = serializers.ReadOnlyField()
+    nationality_flag = serializers.SerializerMethodField()
+    height_cm = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+    handedness = serializers.CharField(read_only=True)
 
     class Meta:
         model = Involvement
         fields = [
-            'id', 'tournament', 'player', 'partner', 'division',
+            'id', 'tournament', 'player', 'partner', 'division', 'nationality_flag', 'height_cm', 'handedness',
             'status', 'paid', 'knockout_points', 'tournament_name',
             'player_email', 'partner_first_name', 'partner_last_name', 'partner_email',
             'division_id', 'division_name',
@@ -530,6 +533,13 @@ class InvolvementListSerializer(serializers.ModelSerializer):
     partner_last_name = serializers.CharField(source='partner.last_name', read_only=True)
     partner_email = serializers.CharField(source='partner.email', read_only=True)
     partner_avatar = serializers.SerializerMethodField()
+    # player_nationality_name = serializers.SerializerMethodField()
+    # nationality_flag = serializers.SerializerMethodField()
+    nationality_flag = serializers.SerializerMethodField()
+    handedness = serializers.CharField(source='player.handedness', read_only=True)
+    height_cm = serializers.DecimalField(source='player.height_cm', max_digits=5, decimal_places=2, read_only=True, allow_null=True)
+
+    
     tournament_name = serializers.CharField(source='tournament.name', read_only=True)
     division_id = serializers.IntegerField(source='division.id', read_only=True)
     division_name = serializers.CharField(source='division.name', read_only=True)
@@ -543,6 +553,7 @@ class InvolvementListSerializer(serializers.ModelSerializer):
             'id', 'tournament', 'player', 'partner', 'division',
             'status', 'paid', 'knockout_points', 'tournament_name',
             'player_first_name', 'player_last_name', 'player_email', 'player_avatar',
+            'player_first_name', 'player_last_name', 'player_email', 'player_avatar', 'nationality_flag', 'handedness', 'height_cm',
             'partner_first_name', 'partner_last_name', 'partner_email', 'partner_avatar',
             'division_id', 'division_name', 'participant_type', 'team_name', 'created_at'
         ]
@@ -577,6 +588,49 @@ class InvolvementListSerializer(serializers.ModelSerializer):
         if obj.partner:
             return f"{obj.player.full_name} / {obj.partner.full_name}"
         return obj.player.full_name
+
+    # def get_player_nationality_name(self, obj):
+    #     """Get player nationality name."""
+    #     if obj.player and obj.player.nationality:
+    #         return obj.player.nationality.name
+    #     return None
+
+    def get_nationality_flag(self, obj):
+        """Get player nationality flag."""
+        if obj.player and obj.player.nationality:
+            return obj.player.nationality.flag
+        return None
+
+    # def get_partner_nationality_name(self, obj):
+    #     """Get partner nationality name."""
+    #     if obj.partner and obj.partner.nationality:
+    #         return obj.partner.nationality.name
+    #     return None
+
+    def get_partner_nationality_flag(self, obj):
+        """Get partner nationality flag."""
+        if obj.partner and obj.partner.nationality:
+            return obj.partner.nationality.flag
+        return None
+
+    def get_nationality_name(self, obj):
+        """Get nationality name."""
+        if obj.player and obj.player.nationality:
+            return obj.player.nationality.name
+        return None
+
+
+    def get_handedness(self, obj):
+        """Get handedness."""
+        if obj.player:
+            return obj.player.handedness
+        return None
+
+    def get_height_cm(self, obj):
+        """Get height in cm."""
+        if obj.player:
+            return obj.player.height_cm
+        return None
 
 
 class InvolvementStatusSerializer(serializers.Serializer):

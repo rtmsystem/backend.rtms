@@ -791,7 +791,8 @@ class InvolvementListCreateView(StandardResponseMixin, generics.ListCreateAPIVie
                 "player", "tournament", "division", "approved_by"
             ).filter(
                 tournament_id=tournament_id,
-                status=InvolvementStatus.APPROVED
+                status=InvolvementStatus.APPROVED,
+                **({"division_id": self.request.query_params.get("division_id")} if self.request.query_params.get("division_id") else {})
             ).order_by('-knockout_points', 'created_at')
 
         # Usuario autenticado: verificar si es admin de la organización
@@ -815,9 +816,15 @@ class InvolvementListCreateView(StandardResponseMixin, generics.ListCreateAPIVie
             return Involvement.objects.none()
 
         # Usuario es admin de la organización: devolver todos los involvements
-        return Involvement.objects.select_related(
+        queryset = Involvement.objects.select_related(
             "player", "tournament", "division", "approved_by"
         ).filter(tournament_id=tournament_id).order_by('-knockout_points', 'created_at')
+
+        division_id = self.request.query_params.get("division_id")
+        if division_id:
+            queryset = queryset.filter(division_id=division_id)
+        
+        return queryset
 
     @swagger_auto_schema(
         operation_summary="List involvements",
@@ -834,92 +841,7 @@ class InvolvementListCreateView(StandardResponseMixin, generics.ListCreateAPIVie
         ],
     )
     def get(self, request, *args, **kwargs):
-        from django.contrib.auth.models import AnonymousUser
-        from django.db.models import Q
-        from apps.players.models import PlayerProfile
-        from .serializers import ApprovedPlayerListSerializer
-        
-        # Si el usuario NO está autenticado: devolver lista única de jugadores aprobados
-        if (
-            isinstance(request.user, AnonymousUser)
-            or not request.user.is_authenticated
-        ):
-            tournament_id = self.kwargs.get("tournament_id")
-            
-            if not tournament_id:
-                return APIResponse.success(data=[], message="No tournament ID provided")
-            
-            # Obtener todos los involvements aprobados del torneo
-            approved_involvements = Involvement.objects.filter(
-                tournament_id=tournament_id,
-                status=InvolvementStatus.APPROVED
-            ).select_related(
-                "player", "player__nationality", "partner", "partner__nationality",
-            ).order_by('-knockout_points', 'created_at')
-            
-            # Obtener IDs únicos de players y partners
-            player_ids = set()
-            partner_ids = set()
-            
-            # Diccionarios para mapear info extra
-            # Nota: Si un jugador está en múltiples divisiones (si fuera posible), esto tomará el último procesado.
-            # Convertimos a listas/dicts para manejo más fácil
-            player_extra_info = {} 
-
-            try:
-                for involvement in approved_involvements:
-                    if involvement.player:
-                        player_ids.add(involvement.player.id)
-                        if involvement.player.id not in player_extra_info:
-                            player_extra_info[involvement.player.id] = {
-                                'knockout_points': involvement.knockout_points,
-                                'division_id': involvement.division_id
-                            }
-                    if involvement.partner:
-                        partner_ids.add(involvement.partner.id)
-                        if involvement.partner.id not in player_extra_info:
-                            player_extra_info[involvement.partner.id] = {
-                                'knockout_points': involvement.knockout_points,
-                                'division_id': involvement.division_id
-                            }
-                
-                # Combinar ambos sets para obtener IDs únicos
-                unique_player_ids = player_ids | partner_ids
-                
-                # Obtener los jugadores únicos
-                players = list(PlayerProfile.objects.filter(
-                    id__in=unique_player_ids
-                ).select_related('nationality').distinct())
-                
-                # Adjuntar info extra a cada objeto player
-                for player in players:
-                    info = player_extra_info.get(player.id)
-                    if info:
-                        player.knockout_points = info['knockout_points']
-                        player.division_id = info['division_id']
-                
-                # Ordenar por knockout_points de mayor a menor
-                players.sort(key=lambda x: getattr(x, 'knockout_points', 0) or 0, reverse=True)
-
-
-                # Serializar los jugadores
-                serializer = ApprovedPlayerListSerializer(players, many=True, context={'request': request})
-                
-                return APIResponse.success(
-                    data=serializer.data,
-                    message="Approved players retrieved successfully"
-                )
-            except Exception as e:
-                import traceback
-                with open('/tmp/debug_error.log', 'w') as f:
-                    f.write(traceback.format_exc())
-                raise e
-        else:
-            serializer = self.get_serializer(self.get_queryset(), many=True)
-            return APIResponse.success(
-                data=serializer.data,
-                message="Involvements retrieved successfully"
-            )
+        return super().get(request, *args, **kwargs)
 
 
 
