@@ -1206,6 +1206,20 @@ class MatchBracketGenerationService:
                 'partner2': None,
             })
         
+        # Delete existing knockout matches to allow regeneration
+        # We exclude group phase matches (starting with 'G')
+        existing_matches = Match.objects.filter(
+            division=self.division
+        ).exclude(match_code__startswith='G')
+        
+        if existing_matches.exists():
+            count = existing_matches.count()
+            existing_matches.delete()
+            logger.info(
+                f"Deleted {count} existing knockout matches for division "
+                f"{self.division.id} before regeneration"
+            )
+
         # Generate single elimination bracket
         # Reset match counter for knockout phase
         self.match_counter = 1

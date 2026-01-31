@@ -242,6 +242,20 @@ class Match(models.Model):
         """Validate match data."""
         from apps.tournaments.models import InvolvementStatus
         
+        # Validate byes (at least one player must be set)
+        # Exception: allow empty players for future round matches (placeholders)
+        # These will be populated when previous matches complete
+        is_placeholder = (
+            self.status == MatchStatus.PENDING and (
+                # Future rounds in any bracket (round > 1)
+                (self.round_number and self.round_number > 1) or
+                # Grand Final (round_number 999) - special case
+                (self.round_number == 999) or
+                # First round in losers bracket (will be populated from winners bracket)
+                (self.round_number == 1 and self.is_losers_bracket)
+            )
+        )
+
         # Validate division is published
         if self.division and not self.division.is_published:
             raise DivisionNotPublishedError()
@@ -251,10 +265,12 @@ class Match(models.Model):
             if self.partner1 or self.partner2:
                 raise PartnersInSinglesError()
         elif self.match_type == MatchType.DOUBLES:
-            if not (self.player1 and self.player2):
-                raise MissingPlayersInDoublesError()
-            if not (self.partner1 and self.partner2):
-                raise MissingPartnersInDoublesError()
+            # Skip validation if it is a placeholder match
+            if not is_placeholder:
+                if not (self.player1 and self.player2):
+                    raise MissingPlayersInDoublesError()
+                if not (self.partner1 and self.partner2):
+                    raise MissingPartnersInDoublesError()
         
         # Validate players are approved in division
         if self.division:
@@ -294,20 +310,6 @@ class Match(models.Model):
                     
                     if not (partner_involvement or partner_as_partner):
                         raise PartnerNotApprovedError(self.partner2.full_name, 'partner2')
-        
-        # Validate byes (at least one player must be set)
-        # Exception: allow empty players for future round matches (placeholders)
-        # These will be populated when previous matches complete
-        is_placeholder = (
-            self.status == MatchStatus.PENDING and (
-                # Future rounds in any bracket (round > 1)
-                (self.round_number and self.round_number > 1) or
-                # Grand Final (round_number 999) - special case
-                (self.round_number == 999) or
-                # First round in losers bracket (will be populated from winners bracket)
-                (self.round_number == 1 and self.is_losers_bracket)
-            )
-        )
         
         if not self.player1 and not self.player2 and not is_placeholder:
             raise MissingPlayersError()
