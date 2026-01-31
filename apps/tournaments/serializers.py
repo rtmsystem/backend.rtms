@@ -387,29 +387,32 @@ class TournamentStatusSerializer(serializers.Serializer):
 
 class InvolvementSerializer(serializers.ModelSerializer):
     """Serializer for Involvement model."""
-    
+
     player_email = serializers.CharField(source='player.email', read_only=True)
     partner_first_name = serializers.CharField(source='partner.first_name', read_only=True)
     partner_last_name = serializers.CharField(source='partner.last_name', read_only=True)
     partner_email = serializers.CharField(source='partner.email', read_only=True)
     tournament_name = serializers.CharField(source='tournament.name', read_only=True)
     division_name = serializers.CharField(source='division.name', read_only=True)
+    division_id = serializers.IntegerField(source='division.id', read_only=True)
     approved_by_name = serializers.CharField(source='approved_by.full_name', read_only=True)
-    
+
     is_approved = serializers.ReadOnlyField()
     is_pending = serializers.ReadOnlyField()
     is_rejected = serializers.ReadOnlyField()
-    
+    knockout_points = serializers.ReadOnlyField()
+
     class Meta:
         model = Involvement
         fields = [
             'id', 'tournament', 'player', 'partner', 'division',
-            'status', 'paid', 'tournament_name',
-            'player_email', 'partner_first_name', 'partner_last_name', 'partner_email', 'division_name', 
+            'status', 'paid', 'knockout_points', 'tournament_name',
+            'player_email', 'partner_first_name', 'partner_last_name', 'partner_email',
+            'division_id', 'division_name',
             'approved_by_name', 'is_approved', 'is_pending', 'is_rejected',
             'created_at', 'updated_at', 'approved_at'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'approved_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'approved_at', 'knockout_points']
 
 
 class InvolvementCreateSerializer(serializers.ModelSerializer):
@@ -517,7 +520,7 @@ class InvolvementUpdateSerializer(serializers.ModelSerializer):
 
 class InvolvementListSerializer(serializers.ModelSerializer):
     """Serializer for Involvement list view."""
-    
+
     # player_name = serializers.CharField(source='player.full_name', read_only=True)
     player_first_name = serializers.CharField(source='player.first_name', read_only=True)
     player_last_name = serializers.CharField(source='player.last_name', read_only=True)
@@ -528,18 +531,20 @@ class InvolvementListSerializer(serializers.ModelSerializer):
     partner_email = serializers.CharField(source='partner.email', read_only=True)
     partner_avatar = serializers.SerializerMethodField()
     tournament_name = serializers.CharField(source='tournament.name', read_only=True)
+    division_id = serializers.IntegerField(source='division.id', read_only=True)
     division_name = serializers.CharField(source='division.name', read_only=True)
     participant_type = serializers.CharField(source='division.participant_type', read_only=True)
     team_name = serializers.SerializerMethodField()
-    
+    knockout_points = serializers.ReadOnlyField()
+
     class Meta:
         model = Involvement
         fields = [
             'id', 'tournament', 'player', 'partner', 'division',
-            'status', 'paid', 'tournament_name', 
+            'status', 'paid', 'knockout_points', 'tournament_name',
             'player_first_name', 'player_last_name', 'player_email', 'player_avatar',
             'partner_first_name', 'partner_last_name', 'partner_email', 'partner_avatar',
-            'division_name', 'participant_type', 'team_name', 'created_at'
+            'division_id', 'division_name', 'participant_type', 'team_name', 'created_at'
         ]
         read_only_fields = ['id', 'created_at']
     
@@ -590,6 +595,8 @@ class ApprovedPlayerListSerializer(serializers.ModelSerializer):
     nationality_flag = serializers.SerializerMethodField()
     height_cm = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True, allow_null=True)
     handedness = serializers.CharField(read_only=True)
+    knockout_points = serializers.SerializerMethodField()
+    division_id = serializers.SerializerMethodField()
     
     class Meta:
         model = PlayerProfile
@@ -601,7 +608,9 @@ class ApprovedPlayerListSerializer(serializers.ModelSerializer):
             'nationality_name',
             'nationality_flag',
             'height_cm',
-            'handedness'
+            'handedness',
+            'knockout_points',
+            'division_id'
         ]
         read_only_fields = ['id']
     
@@ -641,6 +650,13 @@ class ApprovedPlayerListSerializer(serializers.ModelSerializer):
             return obj.last_name
         return None
 
+    def get_knockout_points(self, obj):
+        """Get knockout points safely."""
+        return getattr(obj, 'knockout_points', None)
+
+    def get_division_id(self, obj):
+        """Get division id safely."""
+        return getattr(obj, 'division_id', None)
 
 class GroupStandingSerializer(serializers.ModelSerializer):
     """Serializer for GroupStanding model."""

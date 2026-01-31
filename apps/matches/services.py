@@ -408,7 +408,10 @@ class MatchScoreService:
         # Calculate and update winner
         winner = self.calculate_winner()
         self.update_match_status(winner)
-        
+
+        # Award knockout points to winner if applicable
+        self.award_knockout_points()
+
         # Trigger standings calculation if applicable
         self.trigger_standings_calculation()
         
@@ -424,17 +427,17 @@ class MatchScoreService:
         # Only for ROUND_ROBIN_KNOCKOUT format
         # Import dynamically to avoid circular imports
         from apps.tournaments.models import TournamentFormat
-        
+
         if self.match.division.format == TournamentFormat.ROUND_ROBIN_KNOCKOUT:
             try:
                 from apps.tournaments.services import StandingCalculationService
-                
+
                 service = StandingCalculationService(
                     division=self.match.division,
                     user=self.user
                 )
                 service.execute()
-                
+
                 logger.info(
                     f"Standings calculated for division {self.match.division.id} "
                     f"triggered by match {self.match.id}"
@@ -443,6 +446,60 @@ class MatchScoreService:
                 # Log error but don't fail the match score update
                 logger.error(
                     f"Error calculating standings after match {self.match.id}: {e}"
+                )
+
+    def award_knockout_points(self) -> None:
+        """Award knockout points to winner's Involvement after bracket match win."""
+        from apps.tournaments.models import Involvement, TournamentFormat
+
+        # Only if match is completed with a winner
+        if self.match.status != MatchStatus.COMPLETED or not self.match.winner:
+            return
+
+        # Only bracket matches (round_number > 0)
+        # Group phase matches have round_number < 0
+        if self.match.round_number is None or self.match.round_number <= 0:
+            return
+
+        # Only knockout formats
+        knockout_formats = [
+            TournamentFormat.KNOCKOUT,
+            TournamentFormat.DOUBLE_SLASH,
+            TournamentFormat.ROUND_ROBIN_KNOCKOUT,
+        ]
+        if self.match.division.format not in knockout_formats:
+            return
+
+        points_to_award = 50  # TODO: Make configurable
+
+        # Find winner's Involvement
+        winner_involvement = Involvement.objects.filter(
+            tournament=self.match.division.tournament,
+            division=self.match.division,
+            player=self.match.winner
+        ).first()
+
+        if winner_involvement:
+            winner_involvement.knockout_points += points_to_award
+            winner_involvement.save(update_fields=['knockout_points', 'updated_at'])
+            logger.info(
+                f"Awarded {points_to_award} knockout points to involvement "
+                f"{winner_involvement.id} for match {self.match.id}"
+            )
+
+        # For doubles, also award points to partner if they have their own Involvement
+        if self.match.winner_partner:
+            partner_involvement = Involvement.objects.filter(
+                tournament=self.match.division.tournament,
+                division=self.match.division,
+                player=self.match.winner_partner
+            ).first()
+            if partner_involvement:
+                partner_involvement.knockout_points += points_to_award
+                partner_involvement.save(update_fields=['knockout_points', 'updated_at'])
+                logger.info(
+                    f"Awarded {points_to_award} knockout points to partner involvement "
+                    f"{partner_involvement.id} for match {self.match.id}"
                 )
 
 

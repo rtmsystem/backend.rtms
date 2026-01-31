@@ -12,7 +12,7 @@ def parse_date(date_str):
         return datetime.datetime.strptime(date_str.split('+')[0], "%Y-%m-%d %H:%M:%S")
 
 def main():
-    input_file = 'data-1769482132929.csv'
+    input_file = 'data-00000000000.csv'
     output_file = 'updated_schedule.csv'
 
     matches = []
@@ -30,7 +30,7 @@ def main():
     
     # 2. Define Constraints
     start_date = datetime.date(2026, 1, 28)
-    end_date = datetime.date(2026, 1, 31)
+    end_date = datetime.date(2026, 1, 30) # Updated range: Jan 28-30
     
     # Time range: 17:00 to 22:40 (10:40 PM)
     # 22:40 is the end of the last match, so the last match starts at 22:00
@@ -69,8 +69,22 @@ def main():
         player_match_counts[match['player1_id']] += 1
         player_match_counts[match['player2_id']] += 1
     
-    # Sort matches by "most constrained match first"
-    matches.sort(key=lambda m: player_match_counts[m['player1_id']] + player_match_counts[m['player2_id']], reverse=True)
+    # Sort matches Logic:
+    # 1. Priority: Divisions 9 and 8 (Children) FIRST.
+    # 2. Secondary: Most constrained players first.
+    
+    def match_sort_key(m):
+        # Priority Weight: High number = High priority
+        priority_weight = 0
+        if m['division_id'] in ['8', '9']:
+            priority_weight = 1000 # High priority for children
+        
+        # Constraint Weight: Player density
+        constraint_weight = player_match_counts[m['player1_id']] + player_match_counts[m['player2_id']]
+        
+        return priority_weight + constraint_weight
+
+    matches.sort(key=match_sort_key, reverse=True)
 
     print("--- Player Match Counts ---")
     most_games = 0
@@ -85,7 +99,11 @@ def main():
     # Tracking:
     player_daily_count = defaultdict(lambda: defaultdict(int)) # Date -> Player -> Count
     court_schedule = defaultdict(set)        # Date+Time -> Set of locations occupied
-    player_busy_at = defaultdict(set)        # Date+Time -> Set of players busy
+    player_busy_at = defaultdict(set)        # Date+Time -> Set of players busy (Playing NOW)
+    
+    # For Non-Consecutive check: Track when players finish their games
+    # player_schedule_slots: Player -> List of (start_time, end_time)
+    player_schedule_slots = defaultdict(list)
     
     updated_matches = []
     unscheduled_matches = []
@@ -114,6 +132,25 @@ def main():
             if p1 in player_busy_at[slot_start] or p2 in player_busy_at[slot_start]:
                 continue
             
+            # Constraint: Non-Consecutive Matches
+            # Check if this slot immediately follows OR precedes any existing match for p1 or p2
+            # "Immediately follows" means existing_end == slot_start
+            # "Immediately precedes" means existing_start == slot_end
+            
+            is_consecutive = False
+            for p in [p1, p2]:
+                for (s_start, s_end) in player_schedule_slots[p]:
+                    # Check if on same day
+                    if s_start.date() == slot_start.date():
+                        if s_end == slot_start or s_start == slot_end:
+                            is_consecutive = True
+                            break
+                if is_consecutive:
+                    break
+            
+            if is_consecutive:
+                continue
+            
             # Constraint: Find a free court
             free_location = None
             for loc in sorted_locations:
@@ -132,6 +169,9 @@ def main():
                 court_schedule[slot_start].add(free_location)
                 player_busy_at[slot_start].add(p1)
                 player_busy_at[slot_start].add(p2)
+                
+                player_schedule_slots[p1].append((slot_start, slot_end))
+                player_schedule_slots[p2].append((slot_start, slot_end))
                 
                 updated_matches.append(match)
                 assigned = True

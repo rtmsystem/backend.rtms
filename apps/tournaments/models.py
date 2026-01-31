@@ -542,7 +542,14 @@ class Involvement(models.Model):
         verbose_name='Paid',
         help_text='Whether the player has paid the registration fee'
     )
-    
+
+    # Knockout Points
+    knockout_points = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Knockout Points',
+        help_text='Points accumulated from knockout/bracket match wins'
+    )
+
     # Timestamps
     created_at = models.DateTimeField(
         default=timezone.now,
@@ -585,6 +592,7 @@ class Involvement(models.Model):
             models.Index(fields=['division']),
             models.Index(fields=['status']),
             models.Index(fields=['paid']),
+            models.Index(fields=['-knockout_points']),
         ]
     
     def __str__(self) -> str:
@@ -633,7 +641,7 @@ class Involvement(models.Model):
                     f'Division is full. Maximum {self.division.max_participants} participants allowed.'
                 )
 
-            if self.division.is_published:
+            if not self.pk and self.division.is_published:
                 raise ValidationError(
                     'Registration for this division is closed. No new registrations are allowed.'
             )
